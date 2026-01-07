@@ -8,122 +8,143 @@ class AboutScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('About'),
-        backgroundColor: Colors.blue[700],
+        centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.folder_open_rounded,
+                  size: 90,
+                  color: Colors.blue,
+                ),
+
+                const SizedBox(height: 16),
+
+                const Text(
+                  'Document Search App',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  'Search smarter. Find faster.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                _infoCard(
+                  title: 'What this app does',
+                  icon: Icons.description_outlined,
+                  content:
+                  'This application allows users to select a folder from their device, automatically load all supported documents, and perform fast text search across files such as PDF and DOCX.',
+                ),
+
+                _infoCard(
+                  title: 'How it works',
+                  icon: Icons.search,
+                  content:
+                  '1. Select a folder\n'
+                      '2. The app scans and loads all documents\n'
+                      '3. Enter a keyword to search\n'
+                      '4. Instantly find matching content inside your documents',
+                ),
+
+                _infoCard(
+                  title: 'Why use this app',
+                  icon: Icons.lightbulb_outline,
+                  content:
+                  '• Saves time searching documents\n'
+                      '• Works offline\n'
+                      '• Simple and clean interface\n'
+                      '• Designed for students, researchers, and professionals',
+                ),
+
+                _infoCard(
+                  title: 'Developer',
+                  icon: Icons.person_outline,
+                  content:
+                  'Developed by Ahmadullah Mukhlis.\n'
+                      'Built with Flutter for cross-platform support.',
+                ),
+
+                const SizedBox(height: 24),
+
+                const Divider(),
+
+                const SizedBox(height: 12),
+
+                const Text(
+                  'Version 1.0.0',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  '© 2026 Ahmadullah Mukhlis',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoCard({
+    required String title,
+    required IconData icon,
+    required String content,
+  }) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // App Header
-            Center(
+            Icon(icon, size: 28, color: Colors.blue),
+            const SizedBox(width: 16),
+            Expanded(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.document_scanner,
-                    size: 80,
-                    color: Colors.blue[600],
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Document Scanner Pro',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
                   Text(
-                    'v2.1.0',
-                    style: TextStyle(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    content,
+                    style: const TextStyle(
                       fontSize: 14,
-                      color: Colors.grey[600],
+                      height: 1.5,
+                      color: Colors.black87,
                     ),
                   ),
                 ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // Document Scanning Feature
-            _buildFeatureSection(
-              icon: Icons.camera_alt,
-              title: 'Scan Documents',
-              description: 'Select your drive  and folder and  search in the pdf and docs  .',
-            ),
-
-
-
-            const SizedBox(height: 20),
-
-            // How to Use
-            const Text(
-              'How to Use:',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildInstruction('1. Tap the  button to select  a folder'),
-            _buildInstruction('2. the search text auto find in the pdf and docs'),
-            _buildInstruction('3. Use the search feature to find text in documents'),
-
-            const SizedBox(height: 30),
-
-            // Action Buttons
-            Center(
-              child: Column(
-                children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      // Navigate to document scanner
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[600],
-                      minimumSize: const Size(200, 50),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.camera_alt),
-                        SizedBox(width: 10),
-                        Text('Scan Document'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  OutlinedButton(
-                    onPressed: () {
-                      // Navigate to search screen
-                    },
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(200, 50),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.search),
-                        SizedBox(width: 10),
-                        Text('Search Documents'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const Spacer(),
-
-            // Footer
-            Center(
-              child: Text(
-                '© 2023 Document Scanner Pro',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 12,
-                ),
               ),
             ),
           ],
@@ -131,74 +152,4 @@ class AboutScreen extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildFeatureSection({
-    required IconData icon,
-    required String title,
-    required String description,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[200]),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            color: Colors.blue[600],
-            size: 30,
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInstruction(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('• '),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[800],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
-

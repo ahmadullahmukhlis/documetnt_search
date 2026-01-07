@@ -1,4 +1,9 @@
 import 'package:document_search/design/responsive_design.dart';
+import 'package:document_search/screns/about_screen.dart';
+import 'package:document_search/screns/contact_screen.dart';
+import 'package:document_search/screns/help_screen.dart';
+import 'package:document_search/screns/privacy_screen.dart';
+import 'package:document_search/screns/term_screen.dart';
 import 'package:flutter/material.dart';
 class ResponsiveFooter extends StatelessWidget {
   const ResponsiveFooter({super.key});
@@ -51,12 +56,24 @@ class ResponsiveFooter extends StatelessWidget {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => About()),
+              MaterialPageRoute(builder: (context) => AboutScreen()),
             );
           },
         ),
-        _buildFooterLink('Privacy', context),
-        _buildFooterLink('Terms', context),
+        _buildFooterLink('Privacy', context , onTap: (){
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+          );
+
+        }),
+        _buildFooterLink('Terms', context ,onTap: (){
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TermsScreen()),
+          );
+
+        }),
       ],
     );
   }
@@ -67,9 +84,20 @@ class ResponsiveFooter extends StatelessWidget {
       runSpacing: 8,
       alignment: WrapAlignment.end,
       children: [
-        _buildFooterLink('Settings', context),
-        _buildFooterLink('Help', context),
-        _buildFooterLink('Contact', context),
+        _buildFooterLink('Help', context , onTap: (){
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const HelpScreen()),
+          );
+
+        }),
+        _buildFooterLink('Contact', context,onTap: (){
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ContactScreen()),
+          );
+
+        }),
       ],
     );
   }
