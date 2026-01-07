@@ -47,7 +47,14 @@ class ResponsiveFooter extends StatelessWidget {
       runSpacing: 8,
       alignment: WrapAlignment.start,
       children: [
-        _buildFooterLink('About', context),
+        _buildFooterLink('About', context ,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => About()),
+            );
+          },
+        ),
         _buildFooterLink('Privacy', context),
         _buildFooterLink('Terms', context),
       ],
@@ -67,9 +74,13 @@ class ResponsiveFooter extends StatelessWidget {
     );
   }
 
-  Widget _buildFooterLink(String text, BuildContext context) {
+  Widget _buildFooterLink(
+      String text,
+      BuildContext context, {
+        VoidCallback? onTap,  // Optional onTap callback
+      }) {
     return TextButton(
-      onPressed: () {},
+      onPressed: onTap ?? () {},  // Use provided callback or empty default
       style: TextButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         minimumSize: const Size(0, 0),
