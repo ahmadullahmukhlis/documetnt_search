@@ -22,6 +22,8 @@ class IndexedFile {
 }
 
 class ResponsiveSearchField extends StatefulWidget {
+  const ResponsiveSearchField({super.key});
+
   @override
   State<ResponsiveSearchField> createState() => _ResponsiveSearchFieldState();
 }
@@ -103,10 +105,9 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
         _hasScanned = true;
         _hasPersistentIndex = true;
       });
-      return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _maybeAutoScanSystem();
+      _syncMissingFromSystem();
     });
   }
 
@@ -135,6 +136,37 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       }
     } catch (_) {
       // Ignore permission errors
+    }
+  }
+
+  Future<void> _scanDirectoryForMissing(
+    Directory dir,
+    Set<String> knownPaths,
+    List<IndexedFile> discovered,
+  ) async {
+    try {
+      final queue = <Directory>[dir];
+      while (queue.isNotEmpty) {
+        if (_cancelScan) break;
+        final current = queue.removeLast();
+        await for (final entity in current.list(followLinks: false)) {
+          if (_cancelScan) break;
+          if (entity is Directory) {
+            if (_shouldSkipDir(entity.path)) continue;
+            queue.add(entity);
+            continue;
+          }
+          if (entity is! File) continue;
+          final pathLower = entity.path.toLowerCase();
+          final ext = _getExtension(pathLower);
+          if (!_supportedExtensions.contains(ext)) continue;
+          if (knownPaths.contains(pathLower)) continue;
+          knownPaths.add(pathLower);
+          discovered.add(IndexedFile(path: entity.path));
+        }
+      }
+    } catch (_) {
+      // Ignore permission errors.
     }
   }
 
@@ -371,6 +403,53 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     }
   }
 
+  Future<void> _preloadFiles(List<IndexedFile> files) async {
+    if (files.isEmpty) return;
+    setState(() {
+      _isPreloading = true;
+      _cancelPreload = false;
+      _preloadedCount = 0;
+    });
+
+    var lastUiUpdate = DateTime.now();
+    for (final file in files) {
+      if (_cancelPreload) break;
+      if (file.content.isEmpty) {
+        try {
+          final rawContent = _extractContent(file.path);
+          file.content = normalizeText(rawContent);
+        } catch (_) {
+          // Ignore files that fail
+        }
+      }
+      try {
+        await IndexService.instance.indexFile(
+          path: file.path,
+          name: p.basename(file.path),
+          content: file.content,
+        );
+      } catch (_) {
+        // Ignore index failures and keep app responsive.
+      }
+      _preloadedCount += 1;
+      if (mounted) {
+        final now = DateTime.now();
+        if (_preloadedCount % 50 == 0 ||
+            now.difference(lastUiUpdate).inMilliseconds > 200) {
+          lastUiUpdate = now;
+          setState(() {});
+        }
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isPreloading = false;
+        _hasPersistentIndex = true;
+      });
+    }
+  }
+
   /// Perform search (lazy load content)
   void _performSearch(String query) async {
     final activeFiles = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
@@ -526,11 +605,39 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     await _scanMultipleDirectories(roots);
   }
 
-  Future<void> _maybeAutoScanSystem() async {
+  Future<void> _syncMissingFromSystem() async {
     if (_autoScanRequested) return;
     if (!(Platform.isWindows || Platform.isLinux || Platform.isMacOS)) return;
     _autoScanRequested = true;
-    await _scanSystemDocuments();
+
+    final roots = _getSystemRoots();
+    if (roots.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+      _cancelScan = false;
+    });
+
+    final knownPaths = _allFiles.map((f) => f.path.toLowerCase()).toSet();
+    final discovered = <IndexedFile>[];
+    for (final root in roots) {
+      if (_cancelScan) break;
+      await _scanDirectoryForMissing(root, knownPaths, discovered);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      if (discovered.isNotEmpty) {
+        _allFiles.addAll(discovered);
+        _hasScanned = true;
+      }
+      _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+      _isLoading = false;
+    });
+
+    if (_preloadAfterScan && discovered.isNotEmpty) {
+      await _preloadFiles(discovered);
+    }
   }
 
   List<Directory> _getSystemRoots() {
