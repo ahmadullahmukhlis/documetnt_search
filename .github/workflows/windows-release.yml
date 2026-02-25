@@ -19,7 +19,7 @@ jobs:
 
       - name: Create MSIX Installer
         # This creates the .msix file which is the actual installer for Windows 10/11
-        run: dart run msix:create --display-name="YourAppName"
+        run: dart run msix:create --display-name="Document Search" --install-certificate=false
 
       - name: Upload MSIX Installer
         uses: actions/upload-artifact@v4
