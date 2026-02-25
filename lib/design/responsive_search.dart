@@ -503,45 +503,25 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
             ],
           ),
         ),
-        if (_isLoading)
+        if (_isLoading || _isPreloading)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TextButton(
-                  onPressed: () {
-                    setState(() => _cancelScan = true);
-                  },
-                  child: const Text('Stop Scan'),
+                Text(
+                  _isPreloading
+                      ? 'Indexing in background (${_preloadedCount}/${_allFiles.length})'
+                      : 'Scanning in background...',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
-              ],
-            ),
-          ),
-        if (_isPreloading)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                LinearProgressIndicator(
-                  value: _allFiles.isEmpty ? 0 : _preloadedCount / _allFiles.length,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Indexing $_preloadedCount / ${_allFiles.length} files',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        setState(() => _cancelPreload = true);
-                      },
-                      child: const Text('Stop'),
-                    ),
-                  ],
-                ),
+                if (_isLoading)
+                  TextButton(
+                    onPressed: () {
+                      setState(() => _cancelScan = true);
+                    },
+                    child: const Text('Stop'),
+                  ),
               ],
             ),
           ),
@@ -669,21 +649,6 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   }
 
   Widget _buildResultsSection() {
-    if (_isLoading) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        child: const Center(
-          child: Column(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Scanning documents...'),
-            ],
-          ),
-        ),
-      );
-    }
-
     if (_results.isEmpty && _hasScanned) {
       return Container(
         padding: const EdgeInsets.all(20),
