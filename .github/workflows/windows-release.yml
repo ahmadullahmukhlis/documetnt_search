@@ -16,6 +16,9 @@ jobs:
 
       - name: Build Flutter Windows
         run: flutter build windows --release
+      - name: Create MSIX Installer
+        run: dart run msix:create --display-name="YourAppName"
+
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
