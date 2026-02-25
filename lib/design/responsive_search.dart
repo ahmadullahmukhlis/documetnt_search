@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:docx_to_text/docx_to_text.dart';
 import 'package:pdf_text/pdf_text.dart';
 import 'package:file_selector/file_selector.dart';
@@ -33,6 +34,9 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   int _preloadedCount = 0;
   bool _cancelScan = false;
   bool _autoScanRequested = false;
+  Timer? _searchDebounce;
+  bool _isSearching = false;
+  int _searchToken = 0;
 
   List<IndexedFile> _allFiles = [];
   List<IndexedFile> _results = [];
@@ -50,6 +54,13 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeAutoScanSystem();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _controller.dispose();
+    super.dispose();
   }
 
   static const int _maxTextBytes = 20 * 1024 * 1024;
@@ -77,14 +88,23 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   /// Recursively scan a directory asynchronously
   Future<void> _scanDirectory(Directory dir, StreamController<IndexedFile> stream) async {
     try {
-      await for (var entity in dir.list(recursive: true, followLinks: false)) {
+      final queue = <Directory>[dir];
+      while (queue.isNotEmpty) {
         if (_cancelScan) break;
-        if (entity is File) {
-          final pathLower = entity.path.toLowerCase();
-          final ext = _getExtension(pathLower);
-          if (_supportedExtensions.contains(ext)) {
-            print('Document found: ${entity.path}');
-            stream.add(IndexedFile(path: entity.path));
+        final current = queue.removeLast();
+        await for (var entity in current.list(followLinks: false)) {
+          if (_cancelScan) break;
+          if (entity is Directory) {
+            if (_shouldSkipDir(entity.path)) continue;
+            queue.add(entity);
+            continue;
+          }
+          if (entity is File) {
+            final pathLower = entity.path.toLowerCase();
+            final ext = _getExtension(pathLower);
+            if (_supportedExtensions.contains(ext)) {
+              stream.add(IndexedFile(path: entity.path));
+            }
           }
         }
       }
@@ -102,6 +122,32 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   bool _isTypeEnabled(String path) {
     final ext = _getExtension(path.toLowerCase());
     return _enabledExtensions.contains(ext);
+  }
+
+  bool _shouldSkipDir(String path) {
+    final p = path.toLowerCase();
+    if (Platform.isLinux) {
+      return p.startsWith('/proc') ||
+          p.startsWith('/sys') ||
+          p.startsWith('/dev') ||
+          p.startsWith('/run') ||
+          p.startsWith('/snap') ||
+          p.startsWith('/var/lib/snapd') ||
+          p.startsWith('/var/cache') ||
+          p.startsWith('/var/tmp');
+    }
+    if (Platform.isMacOS) {
+      return p.startsWith('/system') ||
+          p.startsWith('/private') ||
+          p.startsWith('/dev');
+    }
+    if (Platform.isWindows) {
+      return p.contains('\\windows') ||
+          p.contains('\\program files') ||
+          p.contains('\\program files (x86)') ||
+          p.contains(r'\\$recycle.bin');
+    }
+    return false;
   }
 
   String normalizeText(String text) {
@@ -275,28 +321,53 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     final activeFiles = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
 
     if (query.trim().isEmpty) {
-      setState(() => _results = List.from(activeFiles));
+      setState(() {
+        _results = List.from(activeFiles);
+        _isSearching = false;
+      });
       return;
     }
 
     final normalizedQuery = normalizeText(query);
-    List<IndexedFile> filtered = [];
+    setState(() => _isSearching = true);
+    final token = ++_searchToken;
 
-    for (var file in activeFiles) {
-      // 1️⃣ Check file name
-      if (file.path.toLowerCase().contains(normalizedQuery)) {
-        filtered.add(file);
-        continue;
-      }
+    final items = activeFiles.map((f) {
+      return {
+        'path': f.path,
+        'pathLower': f.path.toLowerCase(),
+        'content': f.content,
+      };
+    }).toList(growable: false);
 
-      // 2️⃣ Search only already-indexed content for fast results
-      if (file.content.isNotEmpty && file.content.contains(normalizedQuery)) {
-        filtered.add(file);
-      }
+    final matches = await compute(_searchInIsolate, {
+      'query': normalizedQuery,
+      'items': items,
+    });
+
+    if (!mounted || token != _searchToken) return;
+
+    final byPath = {for (final f in activeFiles) f.path: f};
+    final filtered = <IndexedFile>[];
+    for (final path in matches) {
+      final file = byPath[path];
+      if (file != null) filtered.add(file);
     }
 
-    setState(() => _results = filtered);
+    setState(() {
+      _results = filtered;
+      _isSearching = false;
+    });
   }
+
+  void _scheduleSearch(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _performSearch(query);
+    });
+  }
+
 
 
   TextSpan _highlight(String text, String query) {
@@ -610,7 +681,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
                     style: TextStyle(
                       fontSize: ResponsiveDesign.textFieldFontSize(context),
                     ),
-                    onChanged: _performSearch,
+                    onChanged: _scheduleSearch,
                     onTap: () => setState(() => _isFocused = true),
                     onSubmitted: _performSearch,
                   ),
@@ -632,6 +703,14 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
             ),
           ),
         ),
+        if (_isSearching)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Searching...',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ),
         const SizedBox(height: 16),
 
         // RESULTS SECTION - MOVED OUTSIDE THE SEARCH FIELD
@@ -758,4 +837,27 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       ),
     );
   }
+}
+
+List<String> _searchInIsolate(Map<String, dynamic> args) {
+  final query = args['query'] as String;
+  final items = args['items'] as List<dynamic>;
+  final matches = <String>[];
+
+  for (final item in items) {
+    final map = item as Map<String, dynamic>;
+    final path = map['path'] as String;
+    final pathLower = map['pathLower'] as String;
+    final content = map['content'] as String;
+
+    if (pathLower.contains(query)) {
+      matches.add(path);
+      continue;
+    }
+    if (content.isNotEmpty && content.contains(query)) {
+      matches.add(path);
+    }
+  }
+
+  return matches;
 }
