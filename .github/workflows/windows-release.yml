@@ -9,9 +9,17 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-      - run: flutter build windows --release
-      - name: Upload Build
+
+      - name: Build Flutter Windows
+        run: flutter build windows --release
+
+      # THIS STEP SHOWS YOU THE FILES IN YOUR LOGS
+      - name: Debug - List Build Directory
+        run: dir /s build\windows\
+
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-app
-          path: build/windows/runner/release/
+          # Try this updated path (Note the capital R)
+          path: build/windows/x64/runner/Release/
