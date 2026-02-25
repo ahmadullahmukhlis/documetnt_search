@@ -1,16 +1,28 @@
-# document_search
+# Document Search
 
-A new Flutter project.
+Fast, offline document search across folders and drives. Supports PDF, DOC/DOCX, XLS/XLSX, TXT, CSV, and MD.
 
-## Getting Started
+## Features
+- Scan folders or entire system drives (desktop)
+- Background indexing for fast search
+- File type filters
+- Open documents directly
 
-This project is a starting point for a Flutter application.
+## Build Windows Installer (MSIX)
+The GitHub Action builds a Windows MSIX installer and also exports a self‑signed test certificate.
 
-A few resources to get you started if this is your first Flutter project:
+### Install on Windows (Test Certificate)
+If you use the self‑signed certificate, Windows will warn that the publisher is unknown until you install the certificate.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Steps on the target PC:
+1. Download the artifact from GitHub Actions.
+2. Double‑click `github_actions_cert.cer`.
+3. Click **Install Certificate**.
+4. Choose **Local Machine**.
+5. Select **Place all certificates in the following store**.
+6. Install into:
+   - **Trusted Root Certification Authorities**
+   - **Trusted People**
+7. Install the `.msix` file.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+For production distribution, use a real code‑signing certificate so Windows verifies the publisher.

@@ -1,0 +1,14 @@
+Install Windows MSIX (Test Certificate)
+
+This MSIX is signed with a self‑signed test certificate. Windows will not trust it
+until you install the certificate.
+
+Steps:
+1) Double‑click github_actions_cert.cer
+2) Click "Install Certificate"
+3) Choose "Local Machine"
+4) Select "Place all certificates in the following store"
+5) Install into:
+   - Trusted Root Certification Authorities
+   - Trusted People
+6) Install the .msix file
