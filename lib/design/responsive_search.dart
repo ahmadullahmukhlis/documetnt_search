@@ -37,6 +37,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   Timer? _searchDebounce;
   bool _isSearching = false;
   int _searchToken = 0;
+  int _scanUpdateCounter = 0;
 
   List<IndexedFile> _allFiles = [];
   List<IndexedFile> _results = [];
@@ -228,17 +229,26 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       _cancelPreload = false;
       _preloadedCount = 0;
       _cancelScan = false;
+      _scanUpdateCounter = 0;
     });
 
     final controller = StreamController<IndexedFile>();
 
     controller.stream.listen((file) {
-      setState(() {
-        _allFiles.add(file);
-        _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
-      });
+      _allFiles.add(file);
+      _scanUpdateCounter += 1;
+      if (_scanUpdateCounter % 50 == 0) {
+        if (mounted) {
+          setState(() {
+            _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+          });
+        }
+      }
     }, onDone: () async {
-      setState(() => _isLoading = false);
+      setState(() {
+        _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        _isLoading = false;
+      });
       if (_preloadAfterScan) {
         await _preloadAllContents();
       }
@@ -258,17 +268,26 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       _cancelPreload = false;
       _preloadedCount = 0;
       _cancelScan = false;
+      _scanUpdateCounter = 0;
     });
 
     final controller = StreamController<IndexedFile>();
 
     controller.stream.listen((file) {
-      setState(() {
-        _allFiles.add(file);
-        _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
-      });
+      _allFiles.add(file);
+      _scanUpdateCounter += 1;
+      if (_scanUpdateCounter % 50 == 0) {
+        if (mounted) {
+          setState(() {
+            _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+          });
+        }
+      }
     }, onDone: () async {
-      setState(() => _isLoading = false);
+      setState(() {
+        _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        _isLoading = false;
+      });
       if (_preloadAfterScan) {
         await _preloadAllContents();
       }
@@ -457,28 +476,57 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   }
 
   List<Directory> _getSystemRoots() {
+    final roots = <Directory>[];
+    final seen = <String>{};
+
+    void addIfExists(String path) {
+      if (path.isEmpty) return;
+      final normalized = path.toLowerCase();
+      if (seen.contains(normalized)) return;
+      final dir = Directory(path);
+      if (dir.existsSync()) {
+        roots.add(dir);
+        seen.add(normalized);
+      }
+    }
+
     if (Platform.isWindows) {
-      final dirs = <Directory>[];
+      final systemDrive = (Platform.environment['SystemDrive'] ?? 'C:')
+          .replaceAll('\\', '')
+          .replaceAll('/', '')
+          .toUpperCase();
+      final userProfile = Platform.environment['USERPROFILE'];
+      if (userProfile != null && userProfile.isNotEmpty) {
+        addIfExists('$userProfile\\Documents');
+        addIfExists('$userProfile\\Desktop');
+        addIfExists('$userProfile\\Downloads');
+      }
+      addIfExists('$systemDrive:\\');
       for (var i = 65; i <= 90; i++) {
         final letter = String.fromCharCode(i);
+        if (letter == systemDrive) continue;
         final path = '$letter:\\';
-        final dir = Directory(path);
-        if (dir.existsSync()) {
-          dirs.add(dir);
-        }
+        addIfExists(path);
       }
-      return dirs;
+      return roots;
     }
     if (Platform.isMacOS || Platform.isLinux) {
-      if (Platform.isMacOS) {
-        return [Directory('/Users')];
+      final home = Platform.environment['HOME'] ?? '';
+      if (home.isNotEmpty) {
+        addIfExists('$home/Documents');
+        addIfExists('$home/Desktop');
+        addIfExists('$home/Downloads');
       }
-      return [
-        Directory('/home'),
-        Directory('/media'),
-        Directory('/mnt'),
-        Directory('/'),
-      ];
+      if (Platform.isMacOS) {
+        addIfExists('/');
+        addIfExists('/Volumes');
+        return roots;
+      }
+      addIfExists('/home');
+      addIfExists('/');
+      addIfExists('/media');
+      addIfExists('/mnt');
+      return roots;
     }
     return [];
   }
