@@ -585,22 +585,64 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+    final isNarrow = width < 700;
 
     return Column(
       children: [
-        ElevatedButton.icon(
-          onPressed: _pickDirectory,
-          icon: const Icon(Icons.folder_open),
-          label: const Text('Select Drive / Folder to Scan'),
-        ),
-        if (isDesktop) ...[
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _scanSystemDocuments,
-            icon: const Icon(Icons.storage),
-            label: const Text('Scan Entire System Drive (Desktop)'),
+        Align(
+          alignment: Alignment.center,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: ResponsiveDesign.searchFieldWidth(context),
+            ),
+            child: isNarrow
+                ? Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _pickDirectory,
+                          icon: const Icon(Icons.folder_open),
+                          label: const Text('Select Drive / Folder'),
+                        ),
+                      ),
+                      if (isDesktop) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _scanSystemDocuments,
+                            icon: const Icon(Icons.storage),
+                            label: const Text('Scan System Drive'),
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _pickDirectory,
+                          icon: const Icon(Icons.folder_open),
+                          label: const Text('Select Drive / Folder'),
+                        ),
+                      ),
+                      if (isDesktop) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _scanSystemDocuments,
+                            icon: const Icon(Icons.storage),
+                            label: const Text('Scan System Drive'),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
           ),
-        ],
+        ),
         const SizedBox(height: 12),
         SizedBox(
           width: ResponsiveDesign.searchFieldWidth(context),

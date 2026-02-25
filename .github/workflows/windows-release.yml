@@ -27,6 +27,9 @@ jobs:
           $password = ConvertTo-SecureString -String "1234" -Force -AsPlainText
           Export-PfxCertificate -Cert $cert -FilePath "github_actions_cert.pfx" -Password $password
 
+          # 3. Export the public certificate for installation on target PCs
+          Export-Certificate -Cert $cert -FilePath "github_actions_cert.cer"
+
       - name: Create MSIX Installer
         # Use the generated certificate to sign the installer
         run: >
@@ -40,5 +43,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: build/windows/**/Release/*.msix
+          path: |
+            build/windows/**/Release/*.msix
+            github_actions_cert.cer
+            artifacts/INSTALL_WINDOWS_TEST_CERT.txt
           if-no-files-found: error
