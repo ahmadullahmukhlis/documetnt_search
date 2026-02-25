@@ -6,20 +6,20 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
+      - name: Install dependencies
+        run: flutter pub get
+
       - name: Build Flutter Windows
         run: flutter build windows --release
-
-      # THIS STEP SHOWS YOU THE FILES IN YOUR LOGS
-      - name: Debug - List Build Directory
-        run: dir /s build\windows\
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-app
-          # Try this updated path (Note the capital R)
-          path: build/windows/x64/runner/Release/
+          # This wildcard path will find the Release folder automatically
+          path: build/windows/**/Release/
