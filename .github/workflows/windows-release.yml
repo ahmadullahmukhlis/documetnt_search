@@ -16,13 +16,15 @@ jobs:
 
       - name: Build Flutter Windows
         run: flutter build windows --release
+
       - name: Create MSIX Installer
+        # This creates the .msix file which is the actual installer for Windows 10/11
         run: dart run msix:create --display-name="YourAppName"
 
-
-      - name: Upload Build Artifact
+      - name: Upload MSIX Installer
         uses: actions/upload-artifact@v4
         with:
-          name: windows-app
-          # This wildcard path will find the Release folder automatically
-          path: build/windows/**/Release/
+          name: windows-installer
+          # This path specifically picks only the installer file, avoiding archives
+          path: build/windows/**/Release/*.msix
+          if-no-files-found: error
