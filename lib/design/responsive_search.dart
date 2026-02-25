@@ -7,7 +7,9 @@ import 'package:docx_to_text/docx_to_text.dart';
 import 'package:pdf_text/pdf_text.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:document_search/design/responsive_design.dart';
+import 'package:document_search/services/index_service.dart';
 import 'package:open_file/open_file.dart';
+import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:excel/excel.dart' as excel;
@@ -15,7 +17,8 @@ import 'package:excel/excel.dart' as excel;
 class IndexedFile {
   final String path;
   String content;
-  IndexedFile({required this.path, this.content = ''});
+  String snippet;
+  IndexedFile({required this.path, this.content = '', this.snippet = ''});
 }
 
 class ResponsiveSearchField extends StatefulWidget {
@@ -41,6 +44,10 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
 
   List<IndexedFile> _allFiles = [];
   List<IndexedFile> _results = [];
+  bool _hasPersistentIndex = false;
+
+  bool get _isDesktopPlatform =>
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   @override
   void initState() {
@@ -52,9 +59,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       '.xls',
       '.xlsx',
     };
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _maybeAutoScanSystem();
-    });
+    _initializeIndexAndCache();
   }
 
   @override
@@ -85,6 +90,25 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   };
 
   late Set<String> _enabledExtensions;
+
+  Future<void> _initializeIndexAndCache() async {
+    if (!_isDesktopPlatform) return;
+    await IndexService.instance.init();
+    final cachedPaths = await IndexService.instance.getIndexedPaths();
+    if (!mounted) return;
+    if (cachedPaths.isNotEmpty) {
+      setState(() {
+        _allFiles = cachedPaths.map((p) => IndexedFile(path: p)).toList();
+        _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        _hasScanned = true;
+        _hasPersistentIndex = true;
+      });
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeAutoScanSystem();
+    });
+  }
 
   /// Recursively scan a directory asynchronously
   Future<void> _scanDirectory(Directory dir, StreamController<IndexedFile> stream) async {
@@ -319,6 +343,15 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
           // Ignore files that fail
         }
       }
+      try {
+        await IndexService.instance.indexFile(
+          path: file.path,
+          name: p.basename(file.path),
+          content: file.content,
+        );
+      } catch (_) {
+        // Ignore index failures and keep app responsive.
+      }
       _preloadedCount += 1;
       if (mounted) {
         final now = DateTime.now();
@@ -331,7 +364,10 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     }
 
     if (mounted) {
-      setState(() => _isPreloading = false);
+      setState(() {
+        _isPreloading = false;
+        _hasPersistentIndex = true;
+      });
     }
   }
 
@@ -350,6 +386,28 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     final normalizedQuery = normalizeText(query);
     setState(() => _isSearching = true);
     final token = ++_searchToken;
+
+    if (_isDesktopPlatform && _hasPersistentIndex) {
+      try {
+        final hits = await IndexService.instance.search(query);
+        if (!mounted || token != _searchToken) return;
+        final byPath = {for (final f in activeFiles) f.path: f};
+        final filtered = <IndexedFile>[];
+        for (final hit in hits) {
+          final file = byPath[hit.path];
+          if (file == null) continue;
+          file.snippet = hit.snippet ?? '';
+          filtered.add(file);
+        }
+        setState(() {
+          _results = filtered;
+          _isSearching = false;
+        });
+        return;
+      } catch (_) {
+        // Fall back to in-memory search if DB is unavailable.
+      }
+    }
 
     final items = activeFiles.map((f) {
       return {
@@ -878,8 +936,13 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
               itemCount: _results.length,
               itemBuilder: (context, index) {
                 final file = _results[index];
-                final fileName = file.path.split('/').last;
+                final fileName = p.basename(file.path);
                 final query = _controller.text;
+                final subtitlePreview = file.snippet.isNotEmpty
+                    ? file.snippet
+                    : (file.content.length > 100
+                        ? '${file.content.substring(0, 100)}...'
+                        : file.content);
 
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -898,14 +961,12 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 12, color: Colors.grey),
                         ),
-                        if (file.content.isNotEmpty && query.isNotEmpty)
+                        if (subtitlePreview.isNotEmpty && query.isNotEmpty)
                           const SizedBox(height: 4),
-                        if (file.content.isNotEmpty && query.isNotEmpty)
+                        if (subtitlePreview.isNotEmpty && query.isNotEmpty)
                           RichText(
                             text: _highlight(
-                              file.content.length > 100
-                                  ? '${file.content.substring(0, 100)}...'
-                                  : file.content,
+                              subtitlePreview,
                               query,
                             ),
                             maxLines: 2,
@@ -931,6 +992,10 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
 
 List<String> _searchInIsolate(Map<String, dynamic> args) {
   final query = args['query'] as String;
+  final terms = query
+      .split(RegExp(r'\s+'))
+      .where((t) => t.isNotEmpty)
+      .toList(growable: false);
   final items = args['items'] as List<dynamic>;
   final matches = <String>[];
 
@@ -946,6 +1011,14 @@ List<String> _searchInIsolate(Map<String, dynamic> args) {
     }
     if (content.isNotEmpty && content.contains(query)) {
       matches.add(path);
+      continue;
+    }
+    if (terms.isNotEmpty) {
+      final searchable = '$pathLower $content';
+      final hasAllTerms = terms.every(searchable.contains);
+      if (hasAllTerms) {
+        matches.add(path);
+      }
     }
   }
 
