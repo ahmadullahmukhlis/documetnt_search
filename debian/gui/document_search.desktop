@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0.0
+Name=document search
+GenericName=document search
+Comment=A new Flutter project.
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=Flutter;
+Icon=document_search
