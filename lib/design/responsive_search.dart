@@ -645,6 +645,30 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     return TextSpan(style: TextStyle(color: baseColor), children: spans);
   }
 
+  String _snippetFromContent(String content, String query) {
+    final trimmed = query.trim();
+    if (content.isEmpty || trimmed.isEmpty) return '';
+    final lowerContent = content.toLowerCase();
+    final terms = trimmed
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((t) => t.isNotEmpty)
+        .toList(growable: false);
+    if (terms.isEmpty) return '';
+    int firstMatch = -1;
+    for (final term in terms) {
+      final idx = lowerContent.indexOf(term);
+      if (idx != -1 && (firstMatch == -1 || idx < firstMatch)) {
+        firstMatch = idx;
+      }
+    }
+    if (firstMatch == -1) return '';
+    final start = (firstMatch - 40).clamp(0, content.length);
+    final end = (firstMatch + 120).clamp(0, content.length);
+    final snippet = content.substring(start, end).trim();
+    return start > 0 ? '…$snippet' : snippet;
+  }
+
   Icon _getFileIcon(String path) {
     final pathLower = path.toLowerCase();
     if (pathLower.endsWith('.pdf')) return const Icon(Icons.picture_as_pdf, color: Colors.red);
@@ -1197,8 +1221,9 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
                 final file = _results[index];
                 final fileName = p.basename(file.path);
                 final query = _controller.text;
-                final subtitlePreview = file.snippet.isNotEmpty
-                    ? file.snippet
+                final querySnippet = _snippetFromContent(file.content, query);
+                final subtitlePreview = query.isNotEmpty
+                    ? querySnippet
                     : (file.content.length > 100
                         ? '${file.content.substring(0, 100)}...'
                         : file.content);
