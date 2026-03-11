@@ -24,6 +24,20 @@ static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+  g_autoptr(GError) icon_error = nullptr;
+  g_autofree gchar* cwd = g_get_current_dir();
+  g_autofree gchar* icon_path_bundle =
+      g_build_filename(cwd, "data", "flutter_assets", "assets", "app_icon.png", nullptr);
+  g_autofree gchar* icon_path_dev =
+      g_build_filename(cwd, "assets", "app_icon.png", nullptr);
+  if (g_file_test(icon_path_bundle, G_FILE_TEST_EXISTS)) {
+    gtk_window_set_icon_from_file(window, icon_path_bundle, &icon_error);
+  } else if (g_file_test(icon_path_dev, G_FILE_TEST_EXISTS)) {
+    gtk_window_set_icon_from_file(window, icon_path_dev, &icon_error);
+  }
+  if (icon_error != nullptr) {
+    g_error_free(icon_error);
+  }
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
