@@ -41,6 +41,8 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   bool _cancelScan = false;
   bool _autoScanRequested = false;
   String _scanStatus = '';
+  int _activeSearchFileCounter = 0;
+  static const int _searchUpdateEveryNFiles = 5;
   Timer? _searchDebounce;
   bool _isSearching = false;
   int _searchToken = 0;
@@ -549,8 +551,13 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   void _processFileForActiveSearch(IndexedFile file) {
     final query = _controller.text.trim();
     if (query.isEmpty || _cancelScan) return;
+    _activeSearchFileCounter += 1;
+    final shouldTriggerSearch =
+        _activeSearchFileCounter % _searchUpdateEveryNFiles == 0;
     if (file.content.isNotEmpty) {
-      _scheduleSearch(query);
+      if (shouldTriggerSearch) {
+        _scheduleSearch(query);
+      }
       return;
     }
     Future(() {
@@ -563,7 +570,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       }
     }).then((_) {
       if (!mounted) return;
-      if (_controller.text.trim() == query) {
+      if (_controller.text.trim() == query && shouldTriggerSearch) {
         _scheduleSearch(query);
       }
     });
@@ -571,8 +578,10 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
 
 
 
-  TextSpan _highlight(String text, String query) {
-    if (query.isEmpty) return TextSpan(text: text);
+  TextSpan _highlight(String text, String query, Color baseColor) {
+    if (query.isEmpty) {
+      return TextSpan(text: text, style: TextStyle(color: baseColor));
+    }
 
     final lowerText = text.toLowerCase();
     final lowerQuery = query.toLowerCase();
@@ -580,18 +589,25 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     int start = 0;
     int index;
     while ((index = lowerText.indexOf(lowerQuery, start)) != -1) {
-      spans.add(TextSpan(text: text.substring(start, index)));
+      spans.add(TextSpan(
+        text: text.substring(start, index),
+        style: TextStyle(color: baseColor),
+      ));
       spans.add(TextSpan(
         text: text.substring(index, index + query.length),
-        style: const TextStyle(
+        style: TextStyle(
+          color: Colors.black,
           backgroundColor: Colors.yellow,
           fontWeight: FontWeight.bold,
         ),
       ));
       start = index + query.length;
     }
-    spans.add(TextSpan(text: text.substring(start)));
-    return TextSpan(children: spans);
+    spans.add(TextSpan(
+      text: text.substring(start),
+      style: TextStyle(color: baseColor),
+    ));
+    return TextSpan(style: TextStyle(color: baseColor), children: spans);
   }
 
   Icon _getFileIcon(String path) {
@@ -1158,7 +1174,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
                   child: ListTile(
                     leading: _getFileIcon(file.path),
                     title: RichText(
-                      text: _highlight(fileName, query),
+                      text: _highlight(fileName, query, Colors.blue.shade800),
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1176,6 +1192,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
                             text: _highlight(
                               subtitlePreview,
                               query,
+                              Colors.blue.shade700,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
