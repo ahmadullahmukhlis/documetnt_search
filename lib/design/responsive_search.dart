@@ -43,6 +43,8 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   String _scanStatus = '';
   int _activeSearchFileCounter = 0;
   static const int _searchUpdateEveryNFiles = 5;
+  bool _searchContentLoading = false;
+  int _searchContentToken = 0;
   Timer? _searchDebounce;
   bool _isSearching = false;
   int _searchToken = 0;
@@ -489,6 +491,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     final normalizedQuery = normalizeText(query);
     setState(() => _isSearching = true);
     final token = ++_searchToken;
+    _startSearchContentLoad(query);
 
     if (_isDesktopPlatform && _enablePersistentIndex && _hasPersistentIndex) {
       try {
@@ -576,6 +579,38 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     });
   }
 
+  void _startSearchContentLoad(String query) {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+    if (_searchContentLoading) return;
+    _searchContentLoading = true;
+    final token = ++_searchContentToken;
+
+    Future(() async {
+      final activeFiles = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+      var processed = 0;
+      for (final file in activeFiles) {
+        if (!mounted) break;
+        if (_controller.text.trim() != trimmed) break;
+        if (token != _searchContentToken) break;
+        if (file.content.isEmpty) {
+          try {
+            final rawContent = _extractContent(file.path);
+            file.content = normalizeText(rawContent);
+          } catch (_) {
+            // Ignore extraction failures during live search.
+          }
+        }
+        processed += 1;
+        if (processed % _searchUpdateEveryNFiles == 0) {
+          _scheduleSearch(trimmed);
+          await Future.delayed(const Duration(milliseconds: 1));
+        }
+      }
+    }).whenComplete(() {
+      _searchContentLoading = false;
+    });
+  }
 
 
   TextSpan _highlight(String text, String query, Color baseColor) {
@@ -1179,11 +1214,14 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          file.path,
+                        RichText(
+                          text: _highlight(
+                            file.path,
+                            query,
+                            Colors.black,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
                         ),
                         if (subtitlePreview.isNotEmpty && query.isNotEmpty)
                           const SizedBox(height: 4),
