@@ -30,6 +30,15 @@ class IndexService {
     _isLoaded = true;
   }
 
+  Future<void> clearCache() async {
+    await init();
+    _docsByPath.clear();
+    final file = _cacheFile;
+    if (file != null && await file.exists()) {
+      await file.delete();
+    }
+  }
+
   Future<void> indexFile({
     required String path,
     required String name,
@@ -50,7 +59,7 @@ class IndexService {
     return paths;
   }
 
-  Future<List<SearchHit>> search(String query, {int limit = 500}) async {
+  Future<List<SearchHit>> search(String query, {int limit = 0}) async {
     if (!_isLoaded) {
       await init();
     }
@@ -67,7 +76,7 @@ class IndexService {
           snippet: _snippet(doc.content, terms),
         ),
       );
-      if (hits.length >= limit) break;
+      if (limit > 0 && hits.length >= limit) break;
     }
     return hits;
   }

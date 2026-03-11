@@ -29,6 +29,7 @@ class ResponsiveSearchField extends StatefulWidget {
 }
 
 class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
+  static const bool _enablePersistentIndex = false;
   final TextEditingController _controller = TextEditingController();
   bool _isFocused = false;
   bool _isLoading = false;
@@ -39,6 +40,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   int _preloadedCount = 0;
   bool _cancelScan = false;
   bool _autoScanRequested = false;
+  String _scanStatus = '';
   Timer? _searchDebounce;
   bool _isSearching = false;
   int _searchToken = 0;
@@ -95,19 +97,28 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
 
   Future<void> _initializeIndexAndCache() async {
     if (!_isDesktopPlatform) return;
-    await IndexService.instance.init();
-    final cachedPaths = await IndexService.instance.getIndexedPaths();
-    if (!mounted) return;
-    if (cachedPaths.isNotEmpty) {
-      setState(() {
-        _allFiles = cachedPaths.map((p) => IndexedFile(path: p)).toList();
-        _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
-        _hasScanned = true;
-        _hasPersistentIndex = true;
-      });
+    if (_enablePersistentIndex) {
+      await IndexService.instance.init();
+      final cachedPaths = await IndexService.instance.getIndexedPaths();
+      if (!mounted) return;
+      if (cachedPaths.isNotEmpty) {
+        setState(() {
+          _allFiles = cachedPaths.map((p) => IndexedFile(path: p)).toList();
+          _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+          _hasScanned = true;
+          _hasPersistentIndex = true;
+        });
+      }
+    } else {
+      await IndexService.instance.clearCache();
+      if (!mounted) return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncMissingFromSystem();
+      if (_enablePersistentIndex && _hasPersistentIndex) {
+        _syncMissingFromSystem();
+      } else {
+        _autoScanAllDrivesOnFirstLaunch();
+      }
     });
   }
 
@@ -182,28 +193,6 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
   }
 
   bool _shouldSkipDir(String path) {
-    final p = path.toLowerCase();
-    if (Platform.isLinux) {
-      return p.startsWith('/proc') ||
-          p.startsWith('/sys') ||
-          p.startsWith('/dev') ||
-          p.startsWith('/run') ||
-          p.startsWith('/snap') ||
-          p.startsWith('/var/lib/snapd') ||
-          p.startsWith('/var/cache') ||
-          p.startsWith('/var/tmp');
-    }
-    if (Platform.isMacOS) {
-      return p.startsWith('/system') ||
-          p.startsWith('/private') ||
-          p.startsWith('/dev');
-    }
-    if (Platform.isWindows) {
-      return p.contains('\\windows') ||
-          p.contains('\\program files') ||
-          p.contains('\\program files (x86)') ||
-          p.contains(r'\\$recycle.bin');
-    }
     return false;
   }
 
@@ -286,6 +275,8 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       _preloadedCount = 0;
       _cancelScan = false;
       _scanUpdateCounter = 0;
+      _hasPersistentIndex = false;
+      _scanStatus = 'Scanning: ${dir.path}';
     });
 
     final controller = StreamController<IndexedFile>();
@@ -293,21 +284,25 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     controller.stream.listen((file) {
       _allFiles.add(file);
       _scanUpdateCounter += 1;
-      if (_scanUpdateCounter % 50 == 0) {
-        if (mounted) {
-          setState(() {
-            _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
-          });
-        }
+      final query = _controller.text.trim();
+      if (mounted && query.isEmpty) {
+        setState(() {
+          _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        });
       }
+      _processFileForActiveSearch(file);
     }, onDone: () async {
       setState(() {
-        _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        if (_controller.text.trim().isEmpty) {
+          _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        }
         _isLoading = false;
+        _scanStatus = '';
       });
-      if (_preloadAfterScan) {
-        await _preloadAllContents();
+      if (_controller.text.trim().isNotEmpty) {
+        _scheduleSearch(_controller.text);
       }
+      await _preloadAllContents(keepInMemory: _preloadAfterScan);
     });
 
     await _scanDirectory(dir, controller);
@@ -325,6 +320,8 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       _preloadedCount = 0;
       _cancelScan = false;
       _scanUpdateCounter = 0;
+      _hasPersistentIndex = false;
+      _scanStatus = '';
     });
 
     final controller = StreamController<IndexedFile>();
@@ -332,31 +329,46 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     controller.stream.listen((file) {
       _allFiles.add(file);
       _scanUpdateCounter += 1;
-      if (_scanUpdateCounter % 50 == 0) {
-        if (mounted) {
-          setState(() {
-            _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
-          });
-        }
+      final query = _controller.text.trim();
+      if (mounted && query.isEmpty) {
+        setState(() {
+          _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        });
       }
+      _processFileForActiveSearch(file);
     }, onDone: () async {
       setState(() {
-        _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        if (_controller.text.trim().isEmpty) {
+          _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        }
         _isLoading = false;
+        _scanStatus = '';
       });
-      if (_preloadAfterScan) {
-        await _preloadAllContents();
+      if (_controller.text.trim().isNotEmpty) {
+        _scheduleSearch(_controller.text);
       }
+      await _preloadAllContents(keepInMemory: _preloadAfterScan);
     });
 
     for (final dir in dirs) {
       if (_cancelScan) break;
+      if (mounted) {
+        setState(() {
+          _scanStatus = 'Scanning: ${dir.path}';
+        });
+      }
       await _scanDirectory(dir, controller);
+      final query = _controller.text.trim();
+      if (mounted && query.isEmpty) {
+        setState(() {
+          _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
+        });
+      }
     }
     await controller.close();
   }
 
-  Future<void> _preloadAllContents() async {
+  Future<void> _preloadAllContents({bool keepInMemory = true}) async {
     if (_allFiles.isEmpty) return;
     setState(() {
       _isPreloading = true;
@@ -375,14 +387,19 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
           // Ignore files that fail
         }
       }
-      try {
-        await IndexService.instance.indexFile(
-          path: file.path,
-          name: p.basename(file.path),
-          content: file.content,
-        );
-      } catch (_) {
-        // Ignore index failures and keep app responsive.
+      if (_enablePersistentIndex) {
+        try {
+          await IndexService.instance.indexFile(
+            path: file.path,
+            name: p.basename(file.path),
+            content: file.content,
+          );
+        } catch (_) {
+          // Ignore index failures and keep app responsive.
+        }
+      }
+      if (!keepInMemory) {
+        file.content = '';
       }
       _preloadedCount += 1;
       if (mounted) {
@@ -403,7 +420,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     }
   }
 
-  Future<void> _preloadFiles(List<IndexedFile> files) async {
+  Future<void> _preloadFiles(List<IndexedFile> files, {bool keepInMemory = true}) async {
     if (files.isEmpty) return;
     setState(() {
       _isPreloading = true;
@@ -422,14 +439,19 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
           // Ignore files that fail
         }
       }
-      try {
-        await IndexService.instance.indexFile(
-          path: file.path,
-          name: p.basename(file.path),
-          content: file.content,
-        );
-      } catch (_) {
-        // Ignore index failures and keep app responsive.
+      if (_enablePersistentIndex) {
+        try {
+          await IndexService.instance.indexFile(
+            path: file.path,
+            name: p.basename(file.path),
+            content: file.content,
+          );
+        } catch (_) {
+          // Ignore index failures and keep app responsive.
+        }
+      }
+      if (!keepInMemory) {
+        file.content = '';
       }
       _preloadedCount += 1;
       if (mounted) {
@@ -466,7 +488,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     setState(() => _isSearching = true);
     final token = ++_searchToken;
 
-    if (_isDesktopPlatform && _hasPersistentIndex) {
+    if (_isDesktopPlatform && _enablePersistentIndex && _hasPersistentIndex) {
       try {
         final hits = await IndexService.instance.search(query);
         if (!mounted || token != _searchToken) return;
@@ -518,9 +540,32 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
 
   void _scheduleSearch(String query) {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 100), () {
       if (!mounted) return;
       _performSearch(query);
+    });
+  }
+
+  void _processFileForActiveSearch(IndexedFile file) {
+    final query = _controller.text.trim();
+    if (query.isEmpty || _cancelScan) return;
+    if (file.content.isNotEmpty) {
+      _scheduleSearch(query);
+      return;
+    }
+    Future(() {
+      if (_cancelScan) return;
+      try {
+        final rawContent = _extractContent(file.path);
+        file.content = normalizeText(rawContent);
+      } catch (_) {
+        // Ignore extraction failures for live search.
+      }
+    }).then((_) {
+      if (!mounted) return;
+      if (_controller.text.trim() == query) {
+        _scheduleSearch(query);
+      }
     });
   }
 
@@ -570,7 +615,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Scan entire system?'),
+        title: const Text('Scan all drives?'),
         content: const Text(
           'This can take a long time and may use a lot of CPU.\n'
           'Do you want to continue?',
@@ -605,6 +650,35 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     await _scanMultipleDirectories(roots);
   }
 
+  Future<void> _autoScanAllDrivesOnFirstLaunch() async {
+    if (_autoScanRequested) return;
+    if (!_isDesktopPlatform) return;
+    _autoScanRequested = true;
+
+    final roots = _getSystemRoots();
+    if (roots.isEmpty) return;
+    await _scanMultipleDirectories(roots);
+  }
+
+  Future<void> _clearCacheManually() async {
+    if (_isLoading || _isPreloading) return;
+    await IndexService.instance.clearCache();
+    if (!mounted) return;
+    setState(() {
+      _allFiles.clear();
+      _results.clear();
+      _hasScanned = false;
+      _hasPersistentIndex = false;
+      _scanStatus = '';
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Cache cleared. Please scan again.'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
   Future<void> _syncMissingFromSystem() async {
     if (_autoScanRequested) return;
     if (!(Platform.isWindows || Platform.isLinux || Platform.isMacOS)) return;
@@ -616,12 +690,18 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
     setState(() {
       _isLoading = true;
       _cancelScan = false;
+      _scanStatus = '';
     });
 
     final knownPaths = _allFiles.map((f) => f.path.toLowerCase()).toSet();
     final discovered = <IndexedFile>[];
     for (final root in roots) {
       if (_cancelScan) break;
+      if (mounted) {
+        setState(() {
+          _scanStatus = 'Scanning: ${root.path}';
+        });
+      }
       await _scanDirectoryForMissing(root, knownPaths, discovered);
     }
 
@@ -630,13 +710,15 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       if (discovered.isNotEmpty) {
         _allFiles.addAll(discovered);
         _hasScanned = true;
+        _hasPersistentIndex = false;
       }
       _results = _allFiles.where((f) => _isTypeEnabled(f.path)).toList();
       _isLoading = false;
+      _scanStatus = '';
     });
 
-    if (_preloadAfterScan && discovered.isNotEmpty) {
-      await _preloadFiles(discovered);
+    if (discovered.isNotEmpty) {
+      await _preloadFiles(discovered, keepInMemory: _preloadAfterScan);
     }
   }
 
@@ -778,7 +860,16 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
                           child: OutlinedButton.icon(
                             onPressed: _scanSystemDocuments,
                             icon: const Icon(Icons.storage),
-                            label: const Text('Scan System Drive'),
+                            label: const Text('Scan All Drives'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _clearCacheManually,
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Delete Cache'),
                           ),
                         ),
                       ],
@@ -800,7 +891,15 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
                           child: OutlinedButton.icon(
                             onPressed: _scanSystemDocuments,
                             icon: const Icon(Icons.storage),
-                            label: const Text('Scan System Drive'),
+                            label: const Text('Scan All Drives'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _clearCacheManually,
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Delete Cache'),
                           ),
                         ),
                       ],
@@ -816,7 +915,7 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
             children: [
               const Expanded(
                 child: Text(
-                  'Preload document text after scan (faster search)',
+                  'Keep document text in memory after scan (faster search)',
                   style: TextStyle(fontSize: 12),
                 ),
               ),
@@ -838,7 +937,9 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
                 Text(
                   _isPreloading
                       ? 'Indexing in background (${_preloadedCount}/${_allFiles.length})'
-                      : 'Scanning in background...',
+                      : (_scanStatus.isNotEmpty
+                          ? _scanStatus
+                          : 'Scanning in background...'),
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 if (_isLoading)
