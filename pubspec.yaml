@@ -41,12 +41,13 @@ dependencies:
   collection: ^1.19.1
   file_selector: ^1.1.0
   path_provider: ^2.1.5
-  open_file: ^3.5.10
+  open_file: ^3.5.11
   url_launcher: ^6.3.2
   pdfx: ^2.9.2
-  syncfusion_flutter_pdf: ^25.2.7
+
   read_pdf_text: ^0.3.1
   excel: ^4.0.6
+  syncfusion_flutter_pdf: ^25.2.7
 
 dev_dependencies:
   flutter_test:

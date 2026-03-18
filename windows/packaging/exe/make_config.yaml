@@ -3,6 +3,6 @@ display_name: Document Search
 publisher_name: Document Search
 create_desktop_icon: true
 launch_at_startup: false
-setup_icon_file: assets/app_icon.png
+setup_icon_file: windows/runner/resources/app_icon.ico
 locales:
   - en
