@@ -20,7 +20,7 @@ class GoogleSearchPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const ResponsiveLogo(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 20),
                   // Make the search field widget take remaining space properly
                   Expanded(
                     child: SingleChildScrollView(
