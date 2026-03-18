@@ -1,0 +1,19 @@
+display_name: Document Search
+package_name: document-search
+
+maintainer:
+  name: Document Search
+  email: noreply@document-search.local
+
+priority: optional
+section: utils
+installed_size: 51200
+
+icon: assets/app_icon.png
+generic_name: Document Search
+categories:
+  - Utility
+  - Office
+
+startup_notify: true
+startup_wm_class: document_search
