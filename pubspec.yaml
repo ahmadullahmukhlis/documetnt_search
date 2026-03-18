@@ -58,6 +58,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
   msix: ^3.16.13
 
 # For information on the generic Dart part of this file, see the
@@ -110,3 +111,19 @@ msix_config:
   install_certificate: false
   sign_msix: false
   publisher: CN=DocumentSearch
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/app_icon.png
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: assets/app_icon.png
+  windows:
+    generate: true
+    image_path: assets/app_icon.png
+  macos:
+    generate: true
+    image_path: assets/app_icon.png
