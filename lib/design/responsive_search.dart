@@ -820,8 +820,8 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       final userProfile = Platform.environment['USERPROFILE'];
       if (userProfile != null && userProfile.isNotEmpty) {
         addIfExists('$userProfile\\Documents');
-        addIfExists('$userProfile\\Desktop');
         addIfExists('$userProfile\\Downloads');
+        addIfExists('$userProfile\\Desktop');
       }
       addIfExists('$systemDrive:\\');
       for (var i = 65; i <= 90; i++) {
@@ -836,8 +836,8 @@ class _ResponsiveSearchFieldState extends State<ResponsiveSearchField> {
       final home = Platform.environment['HOME'] ?? '';
       if (home.isNotEmpty) {
         addIfExists('$home/Documents');
-        addIfExists('$home/Desktop');
         addIfExists('$home/Downloads');
+        addIfExists('$home/Desktop');
       }
       if (Platform.isMacOS) {
         addIfExists('/');
